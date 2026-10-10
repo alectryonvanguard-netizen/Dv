@@ -17,6 +17,10 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 90
 
+    env:
+    ANDROID_HOME: ${{ runner.home }}/.buildozer/android/platform/android-sdkANDROID_SDK_ROOT: ${{ runner.home }}/.buildozer/android/platform/android-sdk
+    ANDROIDSDK: ${{ runner.home }}/.buildozer/android/platform/android-sdk
+
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
@@ -32,56 +36,68 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Set up Android SDK and accept licenses
+      - name: Install Android SDK and accept licenses
         uses: android-actions/setup-android@v3
         with:
           accept-android-sdk-licenses: true
-          log-accepted-android-sdk-licenses: false
-          packages: "platform-tools"
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
 
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential \
-            git zip unzip \
-            autoconf automake libtool \
-            pkg-config cmake \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo5 \
-            libffi-dev libssl-dev
+            build-essential git zip unzip \
+            autoconf automake libtool pkg-config cmake \
+            zlib1g-dev libncurses5-dev libncursesw5-dev \
+            libtinfo5 libffi-dev libssl-dev \
+            libc6:i386 libstdc++6:i386 zlib1g:i386
 
       - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install buildozer cython==0.29.36
 
-      - name: Check project files
+      - name: Configure Buildozer
+        shell: bash
         run: |
           test -f main.py
           test -f buildozer.spec
 
-      - name: Configure Buildozer SDK license
-        run: |
-          if grep -q '^android.accept_sdk_license[[:space:]]*=' buildozer.spec; then
-            sed -i 's/^android.accept_sdk_license[[:space:]]*=.*/android.accept_sdk_license = True/' buildozer.spec
+          if grep -qE '^[[:space:]]*android.sdk_path[[:space:]]*=' buildozer.spec; then
+            sed -i "s|^[[:space:]]*android.sdk_path[[:space:]]*=.*|android.sdk_path = $ANDROID_HOME|" buildozer.spec
+          else
+            printf '\nandroid.sdk_path = %s\n' "$ANDROID_HOME" >> buildozer.spec
+          fi
+
+          if grep -qE '^[[:space:]]*android.accept_sdk_license[[:space:]]*=' buildozer.spec; then
+            sed -i 's/^[[:space:]]*android.accept_sdk_license[[:space:]]*=.*/android.accept_sdk_license = True/' buildozer.spec
           else
             printf '\nandroid.accept_sdk_license = True\n' >> buildozer.spec
           fi
 
-      - name: Build Android APK
+      - name: Verify AIDL installation
+        shell: bash
         run: |
-          buildozer -v android debug
+          AIDL="$ANDROID_HOME/build-tools/35.0.0/aidl"
 
-      - name: Verify APK
-        if: success()
-        run: |
-          test -n "$(find bin -maxdepth 1 -name '*.apk' -print -quit)" || {
-            echo "ERROR: Build finished without producing an APK."
+          echo "Android SDK: $ANDROID_HOME"
+          echo "Checking: $AIDL"
+
+          if [ ! -x "$AIDL" ]; then
+            echo "ERROR: AIDL is missing from the configured SDK."
+            echo "Installed Build Tools:"
+            ls -la "$ANDROID_HOME/build-tools" || true
             exit 1
-          }
+          fi
+
+          echo "AIDL executable found."
+          "$AIDL" --version
+
+      - name: Build Android APK
+        run: buildozer -v android debug
 
       - name: Upload APK
         if: always()
