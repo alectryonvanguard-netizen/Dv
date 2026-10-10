@@ -60,7 +60,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install buildozer cython==0.29.36
+             - name: Install Android SDK Build Tools
+          uses: android-actions/setup-android@v3
 
+      - name: Install Android SDK components
+        run: |
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-35"
+          sdkmanager "build-tools;35.0.0"
+
+      - name: Build APK
+        run: |
+          ./gradlew assembleDebug
       - name: Build Android APK
         run: buildozer android debug
 
