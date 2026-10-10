@@ -14,8 +14,15 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
+      - name:     Install Android SDK Build Tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install AIDL and Android SDK components
+        run: |
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-35"
+          sdkmanager "build-tools;35.0.0"
       - name: Checkout project
         uses: actions/checkout@v4
 
