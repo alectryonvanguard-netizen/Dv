@@ -32,7 +32,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:  
-         accept-android-sdk-licenses: true
+         accept-android-sdk-licenses: "true"
       - name: Install Android SDK components
         shell: bash
         run: |
